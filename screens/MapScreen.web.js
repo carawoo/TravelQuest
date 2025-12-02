@@ -11,38 +11,77 @@ import {
 } from 'react-native';
 import { POPULAR_PLACES, CATEGORY_INFO } from '../data/categories';
 import { useGame } from '../contexts/GameContext';
+import GoogleMapView from '../components/GoogleMapView.web';
 
 const { width, height } = Dimensions.get('window');
+const USE_GOOGLE_MAPS = !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 export default function MapScreen({ navigation }) {
   const { performCheckin, hasVisited, getVisitCount } = useGame();
-  const [location, setLocation] = useState({ latitude: 37.5665, longitude: 126.9780 }); // 서울 기본 위치
+  const [location, setLocation] = useState(null);
   const [nearbyPlaces, setNearbyPlaces] = useState(POPULAR_PLACES);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [locationPermission, setLocationPermission] = useState(null);
 
   useEffect(() => {
-    // 웹에서는 geolocation API 사용
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const newLocation = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          };
-          setLocation(newLocation);
-          findNearbyPlaces(newLocation);
-        },
-        (error) => {
-          console.log('위치 정보를 가져올 수 없습니다:', error);
-          // 기본 위치로 근처 장소 찾기
-          findNearbyPlaces(location);
-        }
-      );
-    } else {
-      findNearbyPlaces(location);
-    }
+    requestLocationPermission();
   }, []);
+
+  const requestLocationPermission = () => {
+    if (!navigator.geolocation) {
+      Alert.alert('위치 정보 미지원', '브라우저에서 위치 정보를 지원하지 않습니다.');
+      setDefaultLocation();
+      return;
+    }
+
+    // 위치 권한 요청
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const newLocation = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setLocation(newLocation);
+        setLocationPermission('granted');
+        findNearbyPlaces(newLocation);
+
+        // 위치 변경 감지
+        navigator.geolocation.watchPosition(
+          (position) => {
+            const updatedLocation = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            };
+            setLocation(updatedLocation);
+            findNearbyPlaces(updatedLocation);
+          },
+          (error) => console.log('위치 업데이트 오류:', error),
+          { enableHighAccuracy: true, maximumAge: 30000 }
+        );
+      },
+      (error) => {
+        console.log('위치 권한 오류:', error);
+        setLocationPermission('denied');
+        Alert.alert(
+          '위치 권한 필요',
+          '이 앱은 주변 여행지를 찾기 위해 위치 정보가 필요합니다. 브라우저 설정에서 위치 권한을 허용해주세요.',
+          [
+            { text: '기본 위치 사용', onPress: setDefaultLocation },
+            { text: '닫기', style: 'cancel' }
+          ]
+        );
+        setDefaultLocation();
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
+  const setDefaultLocation = () => {
+    const defaultLoc = { latitude: 37.5665, longitude: 126.9780 };
+    setLocation(defaultLoc);
+    findNearbyPlaces(defaultLoc);
+  };
 
   const findNearbyPlaces = (userLocation) => {
     const nearby = POPULAR_PLACES.map(place => {
@@ -124,24 +163,46 @@ export default function MapScreen({ navigation }) {
     }
   };
 
+  if (!location) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>위치 정보를 가져오는 중...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* 웹용 지도 플레이스홀더 */}
-      <View style={styles.webMapPlaceholder}>
-        <Text style={styles.webMapTitle}>🗺️ 여행지 탐험</Text>
-        <Text style={styles.webMapSubtitle}>
-          데모 버전입니다. 모바일 앱에서 실제 지도 기능을 이용하실 수 있습니다.
-        </Text>
-        <Text style={styles.locationInfo}>
-          현재 위치: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-        </Text>
-        <TouchableOpacity
-          style={styles.demoButton}
-          onPress={() => Alert.alert('데모 모드', '실제 앱에서는 GPS를 통해 자동으로 위치를 추적합니다.')}
-        >
-          <Text style={styles.demoButtonText}>📍 위치 정보 보기</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Google Maps 또는 플레이스홀더 */}
+      {USE_GOOGLE_MAPS ? (
+        <GoogleMapView
+          location={location}
+          places={nearbyPlaces}
+          onMarkerClick={handleMarkerPress}
+          selectedPlace={selectedPlace}
+        />
+      ) : (
+        <View style={styles.webMapPlaceholder}>
+          <Text style={styles.webMapTitle}>🗺️ 여행지 탐험</Text>
+          <Text style={styles.webMapSubtitle}>
+            {locationPermission === 'granted'
+              ? '실시간 위치 추적 중'
+              : 'Google Maps API 키를 추가하면 실제 지도를 볼 수 있습니다'}
+          </Text>
+          <Text style={styles.locationInfo}>
+            현재 위치: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+          </Text>
+          <TouchableOpacity
+            style={styles.demoButton}
+            onPress={() => Alert.alert(
+              '위치 정보',
+              `위도: ${location.latitude}\n경도: ${location.longitude}\n\n권한 상태: ${locationPermission || '확인 중'}`
+            )}
+          >
+            <Text style={styles.demoButtonText}>📍 위치 정보 보기</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* 근처 장소 목록 */}
       <View style={styles.nearbyContainer}>
@@ -257,6 +318,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
   },
   webMapPlaceholder: {
     flex: 1,
