@@ -38,6 +38,11 @@ export default function GoogleMapView({ location, places, onMarkerClick, selecte
           zoom: 12,
           mapTypeControl: false,
           fullscreenControl: false,
+          streetViewControl: false,
+          zoomControl: false,
+          scaleControl: false,
+          rotateControl: false,
+          gestureHandling: 'greedy',
         });
 
         // 사용자 위치 마커
