@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Loader } from '@googlemaps/js-api-loader';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -15,14 +14,26 @@ export default function GoogleMapView({ location, places, onMarkerClick, selecte
       return;
     }
 
-    const loader = new Loader({
-      apiKey: GOOGLE_MAPS_API_KEY,
-      version: 'weekly',
-    });
+    // 새로운 Google Maps API 로딩 방식
+    const loadGoogleMaps = async () => {
+      if (window.google && window.google.maps) {
+        initMap();
+        return;
+      }
 
-    loader.load().then((google) => {
-      if (mapRef.current && !googleMapRef.current) {
-        googleMapRef.current = new google.maps.Map(mapRef.current, {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        initMap();
+      };
+      document.head.appendChild(script);
+    };
+
+    const initMap = () => {
+      if (mapRef.current && !googleMapRef.current && window.google) {
+        googleMapRef.current = new window.google.maps.Map(mapRef.current, {
           center: { lat: location.latitude, lng: location.longitude },
           zoom: 12,
           mapTypeControl: false,
@@ -30,11 +41,11 @@ export default function GoogleMapView({ location, places, onMarkerClick, selecte
         });
 
         // 사용자 위치 마커
-        new google.maps.Marker({
+        new window.google.maps.Marker({
           position: { lat: location.latitude, lng: location.longitude },
           map: googleMapRef.current,
           icon: {
-            path: google.maps.SymbolPath.CIRCLE,
+            path: window.google.maps.SymbolPath.CIRCLE,
             scale: 10,
             fillColor: '#4285F4',
             fillOpacity: 1,
@@ -45,9 +56,11 @@ export default function GoogleMapView({ location, places, onMarkerClick, selecte
         });
 
         // 장소 마커들
-        updateMarkers(google);
+        updateMarkers(window.google);
       }
-    });
+    };
+
+    loadGoogleMaps();
   }, []);
 
   useEffect(() => {
@@ -63,6 +76,8 @@ export default function GoogleMapView({ location, places, onMarkerClick, selecte
   }, [location]);
 
   const updateMarkers = (google) => {
+    if (!google || !googleMapRef.current) return;
+
     // 기존 마커 제거
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
