@@ -17,6 +17,7 @@ Notifications.setNotificationHandler({
 
 // Screens
 import MapScreen from './screens/MapScreen';
+import QuestsScreen from './screens/QuestsScreen';
 import AchievementsScreen from './screens/AchievementsScreen';
 import CommunityScreen from './screens/CommunityScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -65,6 +66,17 @@ export default function App() {
             }}
           />
           <Tab.Screen
+            name="Quests"
+            component={QuestsScreen}
+            options={{
+              tabBarLabel: '퀘스트',
+              tabBarIcon: ({ color, size }) => (
+                <TabIcon icon="🎯" color={color} size={size} />
+              ),
+              headerTitle: '🎯 퀘스트',
+            }}
+          />
+          <Tab.Screen
             name="Achievements"
             component={AchievementsScreen}
             options={{
@@ -72,7 +84,7 @@ export default function App() {
               tabBarIcon: ({ color, size }) => (
                 <TabIcon icon="🏆" color={color} size={size} />
               ),
-              headerTitle: '업적',
+              headerTitle: '🏆 업적',
             }}
           />
           <Tab.Screen
@@ -83,7 +95,7 @@ export default function App() {
               tabBarIcon: ({ color, size }) => (
                 <TabIcon icon="👥" color={color} size={size} />
               ),
-              headerTitle: '커뮤니티',
+              headerTitle: '👥 커뮤니티',
             }}
           />
           <Tab.Screen
@@ -94,7 +106,7 @@ export default function App() {
               tabBarIcon: ({ color, size }) => (
                 <TabIcon icon="👤" color={color} size={size} />
               ),
-              headerTitle: '내 프로필',
+              headerTitle: '👤 내 프로필',
             }}
           />
         </Tab.Navigator>

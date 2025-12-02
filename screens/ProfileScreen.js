@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useGame } from '../contexts/GameContext';
 import StorageService from '../services/StorageService';
+import { ExperienceBar } from '../components/GameUI';
 
 export default function ProfileScreen({ navigation }) {
   const { userStats, checkins, getLevelInfo, getRecentCheckins } = useGame();
@@ -23,6 +24,10 @@ export default function ProfileScreen({ navigation }) {
 
   const levelInfo = getLevelInfo();
   const recentCheckins = getRecentCheckins(5);
+  const totalVisitedPlaces = Object.keys(userStats.categoryVisits || {}).reduce(
+    (sum, key) => sum + userStats.categoryVisits[key],
+    0
+  );
 
   const handleResetData = () => {
     Alert.alert(
@@ -43,25 +48,24 @@ export default function ProfileScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      {/* 레벨 카드 */}
-      <View style={styles.levelCard}>
-        <Text style={styles.levelIcon}>{levelInfo.level.icon}</Text>
-        <Text style={styles.levelTitle}>{levelInfo.level.title}</Text>
-        <Text style={styles.levelNumber}>Level {levelInfo.level.level}</Text>
+    <View style={styles.container}>
+      {/* 게임 UI - 경험치 바 */}
+      <ExperienceBar
+        current={levelInfo.progress.current}
+        max={levelInfo.progress.max}
+        level={levelInfo.level.level}
+      />
 
-        <View style={styles.progressBarContainer}>
-          <View
-            style={[
-              styles.progressBar,
-              { width: `${levelInfo.progress.percentage}%` },
-            ]}
-          />
+      <ScrollView style={styles.scrollContent}>
+        {/* 레벨 카드 */}
+        <View style={styles.levelCard}>
+          <Text style={styles.levelIcon}>{levelInfo.level.icon}</Text>
+          <Text style={styles.levelTitle}>{levelInfo.level.title}</Text>
+          <Text style={styles.levelNumber}>Level {levelInfo.level.level}</Text>
+          <Text style={styles.levelSubtitle}>
+            다음 레벨까지 {levelInfo.progress.max - levelInfo.progress.current} XP
+          </Text>
         </View>
-        <Text style={styles.progressText}>
-          {levelInfo.progress.current} / {levelInfo.progress.max} XP
-        </Text>
-      </View>
 
       {/* 통계 카드 */}
       <View style={styles.statsCard}>
@@ -154,12 +158,17 @@ export default function ProfileScreen({ navigation }) {
       </TouchableOpacity>
 
       <View style={styles.footer} />
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  scrollContent: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
@@ -169,43 +178,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   levelCard: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     margin: 15,
-    padding: 20,
-    borderRadius: 15,
+    padding: 25,
+    borderRadius: 20,
     alignItems: 'center',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   levelIcon: {
-    fontSize: 60,
+    fontSize: 80,
     marginBottom: 10,
   },
   levelTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#FFD700',
     marginBottom: 5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   levelNumber: {
-    fontSize: 16,
+    fontSize: 20,
     color: '#fff',
-    opacity: 0.9,
-    marginBottom: 15,
+    fontWeight: '600',
   },
-  progressBarContainer: {
-    width: '100%',
-    height: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 5,
-    overflow: 'hidden',
-    marginBottom: 5,
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#fff',
-  },
-  progressText: {
-    color: '#fff',
-    fontSize: 12,
+  levelSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 5,
   },
   statsCard: {
     backgroundColor: '#fff',
