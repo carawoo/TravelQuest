@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-export default function GoogleMapView({ location, places, onMarkerClick, selectedPlace }) {
+export default function GoogleMapView({ location, places, onMarkerClick, selectedPlace, recenterTrigger }) {
   const mapRef = useRef(null);
   const googleMapRef = useRef(null);
   const markersRef = useRef([]);
@@ -74,6 +74,13 @@ export default function GoogleMapView({ location, places, onMarkerClick, selecte
       googleMapRef.current.setCenter({ lat: location.latitude, lng: location.longitude });
     }
   }, [location]);
+
+  useEffect(() => {
+    if (googleMapRef.current && location && recenterTrigger) {
+      googleMapRef.current.panTo({ lat: location.latitude, lng: location.longitude });
+      googleMapRef.current.setZoom(15);
+    }
+  }, [recenterTrigger]);
 
   const updateMarkers = (google) => {
     if (!google || !googleMapRef.current) return;

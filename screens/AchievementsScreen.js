@@ -208,9 +208,9 @@ const styles = StyleSheet.create({
   categoryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: '#fff',
     marginRight: 8,
     borderWidth: 1.5,
@@ -220,6 +220,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+    minWidth: 70,
+    justifyContent: 'center',
   },
   categoryButtonActive: {
     backgroundColor: '#4CAF50',

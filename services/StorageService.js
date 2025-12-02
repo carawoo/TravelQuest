@@ -207,6 +207,15 @@ class StorageService {
       return false;
     }
   }
+
+  // 일반 get/set 메서드 (커뮤니티 등에서 사용)
+  async getItem(key) {
+    return storage.getItem(key);
+  }
+
+  async setItem(key, value) {
+    return storage.setItem(key, value);
+  }
 }
 
 export default new StorageService();

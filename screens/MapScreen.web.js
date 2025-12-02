@@ -23,6 +23,7 @@ export default function MapScreen({ navigation }) {
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [locationPermission, setLocationPermission] = useState(null);
+  const [recenterTrigger, setRecenterTrigger] = useState(0);
 
   useEffect(() => {
     requestLocationPermission();
@@ -180,6 +181,7 @@ export default function MapScreen({ navigation }) {
           places={nearbyPlaces}
           onMarkerClick={handleMarkerPress}
           selectedPlace={selectedPlace}
+          recenterTrigger={recenterTrigger}
         />
       ) : (
         <View style={styles.webMapPlaceholder}>
@@ -202,6 +204,16 @@ export default function MapScreen({ navigation }) {
             <Text style={styles.demoButtonText}>📍 위치 정보 보기</Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* 내 위치로 이동 버튼 */}
+      {location && (
+        <TouchableOpacity
+          style={styles.myLocationButton}
+          onPress={() => setRecenterTrigger(prev => prev + 1)}
+        >
+          <Text style={styles.myLocationIcon}>📍</Text>
+        </TouchableOpacity>
       )}
 
       {/* 근처 장소 목록 */}
@@ -499,5 +511,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  myLocationButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 100,
+  },
+  myLocationIcon: {
+    fontSize: 24,
   },
 });
