@@ -105,6 +105,38 @@ export default function GameScreen() {
   const [targetPosition, setTargetPosition] = useState(null);
   const lastPositionUpdate = useRef(Date.now());
 
+  // NPC 대화 목록
+  const NPC_MESSAGES = [
+    '안녕하세요~',
+    '좋은 하루네요!',
+    '날씨가 참 좋아요',
+    '산책 중이에요',
+    '여기 경치 좋네요',
+    '반가워요!',
+    '오늘도 화이팅!',
+    '즐거운 하루 되세요',
+  ];
+
+  // NPC state
+  const [npcs, setNpcs] = useState([
+    {
+      id: 'npc1',
+      name: '민수',
+      x: 10 * TILE_SIZE + TILE_SIZE / 2,
+      y: 10 * TILE_SIZE + TILE_SIZE / 2,
+      style: CHARACTER_STYLES[6], // 여우
+      bubble: null,
+    },
+    {
+      id: 'npc2',
+      name: '지영',
+      x: 25 * TILE_SIZE + TILE_SIZE / 2,
+      y: 20 * TILE_SIZE + TILE_SIZE / 2,
+      style: CHARACTER_STYLES[3], // 강아지
+      bubble: null,
+    },
+  ]);
+
   // 캐릭터 애니메이션
   const playerBounce = useRef(new Animated.Value(0)).current;
 
@@ -125,11 +157,71 @@ export default function GameScreen() {
     ).start();
   }, []);
 
+  // NPC 이동 및 말풍선 (2초마다)
+  useEffect(() => {
+    if (gameState !== 'game') return;
+
+    const npcInterval = setInterval(() => {
+      setNpcs(prevNpcs =>
+        prevNpcs.map(npc => {
+          const mapData = MAPS[currentMap].data;
+
+          // 랜덤 이동 시도 (최대 3타일)
+          let newX = npc.x;
+          let newY = npc.y;
+
+          for (let i = 0; i < 10; i++) {
+            const randomDx = (Math.random() - 0.5) * TILE_SIZE * 3;
+            const randomDy = (Math.random() - 0.5) * TILE_SIZE * 3;
+            const testX = npc.x + randomDx;
+            const testY = npc.y + randomDy;
+
+            if (isWalkable(testX, testY, mapData)) {
+              newX = testX;
+              newY = testY;
+              break;
+            }
+          }
+
+          // 랜덤 메시지 선택
+          const randomMessage = NPC_MESSAGES[Math.floor(Math.random() * NPC_MESSAGES.length)];
+
+          return {
+            ...npc,
+            x: newX,
+            y: newY,
+            bubble: randomMessage,
+          };
+        })
+      );
+
+      // 3초 후 말풍선 숨김
+      setTimeout(() => {
+        setNpcs(prevNpcs =>
+          prevNpcs.map(npc => ({ ...npc, bubble: null }))
+        );
+      }, 3000);
+    }, 5000);
+
+    return () => clearInterval(npcInterval);
+  }, [gameState, currentMap]);
+
   // 플레이어 나갈 때 정리
   useEffect(() => {
+    if (!playerId) return;
+
+    // beforeunload 이벤트로 페이지 떠날 때 플레이어 삭제
+    const handleBeforeUnload = async () => {
+      // sendBeacon 사용 (페이지를 떠날 때도 확실히 실행됨)
+      await supabase.from('players').delete().eq('id', playerId);
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // cleanup 시에도 삭제 시도
       if (playerId) {
-        // 비동기 삭제 (정리 시)
         supabase.from('players').delete().eq('id', playerId);
       }
     };
@@ -290,6 +382,7 @@ export default function GameScreen() {
                     x: playerData.x,
                     y: playerData.y,
                     style: CHARACTER_STYLES[playerData.style_index] || CHARACTER_STYLES[0],
+                    last_seen: playerData.last_seen,
                   }];
                 });
               }
@@ -320,11 +413,13 @@ export default function GameScreen() {
         )
         .subscribe();
 
-      // 기존 플레이어들 불러오기
+      // 기존 플레이어들 불러오기 (10초 이내에 활동한 플레이어만)
+      const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
       const { data: existingPlayers } = await supabase
         .from('players')
         .select('*')
-        .neq('id', playerId);
+        .neq('id', playerId)
+        .gte('last_seen', tenSecondsAgo);
 
       if (existingPlayers) {
         setOtherPlayers(existingPlayers.map(p => ({
@@ -333,6 +428,7 @@ export default function GameScreen() {
           x: p.x,
           y: p.y,
           style: CHARACTER_STYLES[p.style_index] || CHARACTER_STYLES[0],
+          last_seen: p.last_seen,
         })));
       }
 
@@ -354,9 +450,33 @@ export default function GameScreen() {
           chatScrollRef.current?.scrollToEnd({ animated: false });
         }, 100);
       }
+
+      // 오래된 플레이어 자동 제거 (5초마다)
+      const cleanupInterval = setInterval(async () => {
+        const threshold = new Date(Date.now() - 10000).toISOString();
+
+        // 로컬 state에서 오래된 플레이어 제거
+        setOtherPlayers(prev =>
+          prev.filter(p => {
+            if (!p.last_seen) return true;
+            return new Date(p.last_seen) > new Date(threshold);
+          })
+        );
+
+        // DB에서도 오래된 플레이어 삭제
+        await supabase
+          .from('players')
+          .delete()
+          .lt('last_seen', threshold);
+      }, 5000);
+
+      return cleanupInterval;
     };
 
-    setupRealtimeSubscriptions();
+    let cleanupInterval;
+    setupRealtimeSubscriptions().then(interval => {
+      cleanupInterval = interval;
+    });
 
     // 플레이어 위치 업데이트 (0.5초마다)
     const positionInterval = setInterval(async () => {
@@ -375,6 +495,7 @@ export default function GameScreen() {
     // 정리
     return () => {
       clearInterval(positionInterval);
+      if (cleanupInterval) clearInterval(cleanupInterval);
       if (playersChannel) supabase.removeChannel(playersChannel);
       if (chatChannel) supabase.removeChannel(chatChannel);
     };
@@ -710,6 +831,44 @@ export default function GameScreen() {
 
   const renderCharacters = () => {
     const characters = [];
+
+    // NPC 렌더링 (픽셀 기반)
+    npcs.forEach((npc) => {
+      const screenX = npc.x - cameraOffset.x - TILE_SIZE / 2;
+      const screenY = npc.y - cameraOffset.y - TILE_SIZE / 2;
+      const tileY = Math.floor(npc.y / TILE_SIZE);
+      const tileX = Math.floor(npc.x / TILE_SIZE);
+      const zIndex = tileY * MAP_WIDTH + tileX + 20000;
+
+      characters.push(
+        <View
+          key={`npc-${npc.id}`}
+          style={[
+            styles.character,
+            {
+              left: screenX,
+              top: screenY,
+              width: TILE_SIZE,
+              height: TILE_SIZE,
+              zIndex: zIndex
+            },
+          ]}
+        >
+          {npc.bubble && (
+            <View style={styles.speechBubble}>
+              <Text style={styles.speechBubbleText}>{npc.bubble}</Text>
+              <View style={styles.bubbleTail} />
+            </View>
+          )}
+          <View style={[styles.characterAvatarContainer, { backgroundColor: npc.style.color || '#FFB6C1' }]}>
+            <Text style={styles.characterEmoji}>{npc.style.emoji || '🐰'}</Text>
+          </View>
+          <View style={[styles.nameTag, { backgroundColor: 'rgba(255, 182, 193, 0.95)', borderColor: '#FFB6C1' }]}>
+            <Text style={styles.nameText}>{npc.name}</Text>
+          </View>
+        </View>
+      );
+    });
 
     // 다른 플레이어들 렌더링 (픽셀 기반)
     otherPlayers.forEach((otherPlayer) => {
