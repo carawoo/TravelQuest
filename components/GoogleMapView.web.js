@@ -3,10 +3,11 @@ import { View, StyleSheet } from 'react-native';
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-export default function GoogleMapView({ location, places, onMarkerClick, selectedPlace, recenterTrigger }) {
+export default function GoogleMapView({ location, places, onMarkerClick, selectedPlace, recenterTrigger, routePath }) {
   const mapRef = useRef(null);
   const googleMapRef = useRef(null);
   const markersRef = useRef([]);
+  const polylineRef = useRef(null);
 
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) {
@@ -36,13 +37,11 @@ export default function GoogleMapView({ location, places, onMarkerClick, selecte
         googleMapRef.current = new window.google.maps.Map(mapRef.current, {
           center: { lat: location.latitude, lng: location.longitude },
           zoom: 12,
-          mapTypeControl: false,
-          fullscreenControl: false,
-          streetViewControl: false,
-          zoomControl: false,
-          scaleControl: false,
-          rotateControl: false,
+          disableDefaultUI: true,
           gestureHandling: 'greedy',
+          tilt: 0,
+          heading: 0,
+          disableDoubleClickZoom: false,
         });
 
         // 사용자 위치 마커
@@ -86,6 +85,31 @@ export default function GoogleMapView({ location, places, onMarkerClick, selecte
       googleMapRef.current.setZoom(15);
     }
   }, [recenterTrigger]);
+
+  // 경로선 그리기
+  useEffect(() => {
+    if (googleMapRef.current && window.google && routePath && routePath.length > 1) {
+      // 기존 경로선 제거
+      if (polylineRef.current) {
+        polylineRef.current.setMap(null);
+      }
+
+      // 새 경로선 생성
+      const path = routePath.map(point => ({
+        lat: point.latitude,
+        lng: point.longitude,
+      }));
+
+      polylineRef.current = new window.google.maps.Polyline({
+        path: path,
+        geodesic: true,
+        strokeColor: '#4CAF50',
+        strokeOpacity: 0.8,
+        strokeWeight: 4,
+        map: googleMapRef.current,
+      });
+    }
+  }, [routePath]);
 
   const updateMarkers = (google) => {
     if (!google || !googleMapRef.current) return;

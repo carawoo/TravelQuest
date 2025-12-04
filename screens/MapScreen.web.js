@@ -12,6 +12,7 @@ import {
 import { POPULAR_PLACES, CATEGORY_INFO } from '../data/categories';
 import { useGame } from '../contexts/GameContext';
 import GoogleMapView from '../components/GoogleMapView.web';
+import LocationTrackingService from '../services/LocationTrackingService';
 
 const { width, height } = Dimensions.get('window');
 const USE_GOOGLE_MAPS = !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -24,10 +25,38 @@ export default function MapScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [locationPermission, setLocationPermission] = useState(null);
   const [recenterTrigger, setRecenterTrigger] = useState(0);
+  const [isTracking, setIsTracking] = useState(false);
+  const [routePath, setRoutePath] = useState([]);
+  const [todayDistance, setTodayDistance] = useState(0);
 
   useEffect(() => {
     requestLocationPermission();
+    loadTrackingData();
+    LocationTrackingService.startTracking();
+
+    return () => {
+      LocationTrackingService.stopTracking();
+    };
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const route = await LocationTrackingService.getCurrentRoute();
+      setRoutePath(route);
+      const distance = await LocationTrackingService.getTodayDistance();
+      setTodayDistance(distance);
+    }, 5000); // Update every 5 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadTrackingData = async () => {
+    const route = await LocationTrackingService.getCurrentRoute();
+    setRoutePath(route);
+    const distance = await LocationTrackingService.getTodayDistance();
+    setTodayDistance(distance);
+    setIsTracking(LocationTrackingService.getTrackingStatus().isTracking);
+  };
 
   const requestLocationPermission = () => {
     if (!navigator.geolocation) {
@@ -206,6 +235,18 @@ export default function MapScreen({ navigation }) {
         </View>
       )}
 
+      {/* 오늘 이동 거리 */}
+      {todayDistance > 0 && (
+        <View style={styles.distanceCard}>
+          <Text style={styles.distanceLabel}>오늘 이동</Text>
+          <Text style={styles.distanceValue}>
+            {todayDistance < 1000
+              ? `${Math.round(todayDistance)}m`
+              : `${(todayDistance / 1000).toFixed(2)}km`}
+          </Text>
+        </View>
+      )}
+
       {/* 내 위치로 이동 버튼 */}
       {location && (
         <TouchableOpacity
@@ -215,43 +256,6 @@ export default function MapScreen({ navigation }) {
           <Text style={styles.myLocationIcon}>📍</Text>
         </TouchableOpacity>
       )}
-
-      {/* 근처 장소 목록 */}
-      <View style={styles.nearbyContainer}>
-        <Text style={styles.nearbyTitle}>
-          전국 주요 여행지 ({nearbyPlaces.length})
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {nearbyPlaces.slice(0, 20).map((place, index) => {
-            const categoryInfo = CATEGORY_INFO[place.category];
-            const visited = hasVisited(place.name);
-            const visitCount = getVisitCount(place.name);
-
-            return (
-              <TouchableOpacity
-                key={index}
-                style={[styles.placeCard, visited && styles.visitedCard]}
-                onPress={() => handleMarkerPress(place)}
-              >
-                <Text style={styles.placeIcon}>{categoryInfo.icon}</Text>
-                <Text style={styles.placeName} numberOfLines={1}>
-                  {place.name}
-                </Text>
-                <Text style={styles.placeDistance}>
-                  {place.distance < 1000
-                    ? `${Math.round(place.distance)}m`
-                    : `${(place.distance / 1000).toFixed(1)}km`}
-                </Text>
-                {visited && (
-                  <View style={styles.visitBadge}>
-                    <Text style={styles.visitBadgeText}>✓ {visitCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
 
       {/* 장소 상세 모달 */}
       <Modal
@@ -531,5 +535,30 @@ const styles = StyleSheet.create({
   },
   myLocationIcon: {
     fontSize: 24,
+  },
+  distanceCard: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 100,
+    minWidth: 120,
+  },
+  distanceLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  distanceValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#4CAF50',
   },
 });
